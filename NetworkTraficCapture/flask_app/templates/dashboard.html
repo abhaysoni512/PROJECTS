@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Traffic Dashboard</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Network Traffic Dashboard</h1>
+        <button id="downloadReport" style="float:right;margin-bottom:10px;">Download Report</button>
+        <div class="dashboard-grid" style="grid-template-columns: repeat(2, 1fr);">
+            <div class="card">
+                <h2>Protocol Distribution</h2>
+                <canvas id="protocolChart"></canvas>
+            </div>
+            <div class="card">
+                <h2>Top 5 Source IPs</h2>
+                <canvas id="srcIpChart"></canvas>
+            </div>
+            <div class="card">
+                <h2>Top 5 Destination Ports</h2>
+                <canvas id="dstPortChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <script>
+    function updateDashboard(data) {
+        // Protocol Distribution Pie Chart
+        const protocols = data.protocol_distribution;
+        const ctxProto = document.getElementById('protocolChart').getContext('2d');
+        if(window.protocolChart && typeof window.protocolChart.destroy === 'function') window.protocolChart.destroy();
+        window.protocolChart = new Chart(ctxProto, {
+            type: 'pie',
+            data: {
+                labels: Object.keys(protocols),
+                datasets: [{
+                    data: Object.values(protocols),
+                    backgroundColor: ['#6ab04c', '#f9ca24', '#eb4d4b', '#3498db', '#ff7675'],
+                }]
+            },
+            options: { plugins: { legend: { display: true } } }
+        });
+
+        // Top 5 Source IPs Bar Chart
+        const srcIp = data.top_src_ips;
+        const ctxSrcIp = document.getElementById('srcIpChart').getContext('2d');
+        if(window.srcIpChart && typeof window.srcIpChart.destroy === 'function') window.srcIpChart.destroy();
+        window.srcIpChart = new Chart(ctxSrcIp, {
+            type: 'bar',
+            data: {
+                labels: srcIp.labels,
+                datasets: [{
+                    label: 'Packet Count',
+                    data: srcIp.counts,
+                    backgroundColor: '#74b9ff',
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: { x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 45 } } }
+            }
+        });
+
+        // Top 5 Destination Ports Horizontal Bar Chart
+        const dstPort = data.top_dst_ports;
+        const ctxDstPort = document.getElementById('dstPortChart').getContext('2d');
+        if(window.dstPortChart && typeof window.dstPortChart.destroy === 'function') window.dstPortChart.destroy();
+        window.dstPortChart = new Chart(ctxDstPort, {
+            type: 'bar',
+            data: {
+                labels: dstPort.labels,
+                datasets: [{
+                    label: 'Packet Count',
+                    data: dstPort.counts,
+                    backgroundColor: '#ff7675',
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+    // Initial load
+    fetch('/api/dashboard').then(res => res.json()).then(updateDashboard);
+    setInterval(() => {
+        fetch('/api/dashboard')
+          .then(res => res.json())
+          .then(updateDashboard);
+    }, 10000);
+    document.getElementById('downloadReport').onclick = function() {
+        fetch('/api/dashboard')
+          .then(res => res.json())
+          .then(data => {
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'dashboard_report.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          });
+    };
+    </script>
+</body>
+</html>
